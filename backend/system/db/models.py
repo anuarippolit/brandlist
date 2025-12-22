@@ -12,16 +12,11 @@ class Product(Base):
     name = Column(String, nullable=False)
 
     # Массивы
-    colors = Column(ARRAY(String), nullable=True)
-    images = Column(ARRAY(String), nullable=True)
-    sizes = Column(ARRAY(String), nullable=True)
-    category = Column(ARRAY(String), nullable=True)
-    gender = Column(ARRAY(String), nullable=True)
+    images = Column(ARRAY(String), nullable=True)  # List of image URLs
+    category = Column(ARRAY(String), nullable=True)  # List of categories (e.g., ["Обувь", "Кроссовки"])
 
-    # Прочее
-    link = Column(String, nullable=True, unique=True)
-    brand = Column(String, nullable=True)
-    sale_price = Column(Float, nullable=True)
-    first_price = Column(Float, nullable=True)
-
-    fam_category = Column(String, nullable=True, index=True)
+    # Основные поля
+    link = Column(String, nullable=True, unique=True, index=True)  # Product page URL (unique для избежания дубликатов)
+    brand = Column(String, nullable=True, index=True)  # Brand name
+    sale_price = Column(Float, nullable=True)  # Discounted/current price (None если нет скидки)
+    first_price = Column(Float, nullable=True)  # Original price (None если не указана)

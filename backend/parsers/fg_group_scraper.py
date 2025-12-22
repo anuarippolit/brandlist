@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
-FG_CATEGORIES = [320, 322, 140, 156, 410]
-PAGE_LIMIT = 30
+FG_CATEGORIES = [320]
+MAX_PAGES = 1000
 BASE_URL = "https://api.frgroup.kz/v3/catalog"
 
 def fetch_json(url):
@@ -57,14 +57,21 @@ def parse_product(product, cat_id):
     sizes = [sku.get("sizeValue", "") for sku in product.get("skusList", []) if sku.get("isAvailable")]
 
     try:
-        sale_price = float(product.get("salePrice", 0))
+        sale_price_raw = float(product.get("salePrice", 0))
     except (TypeError, ValueError):
-        sale_price = 0
+        sale_price_raw = 0
 
     try:
-        first_price = float(product.get("firstPrice", 0))
+        first_price_raw = float(product.get("firstPrice", 0))
     except (TypeError, ValueError):
-        first_price = 0
+        first_price_raw = 0
+
+    if sale_price_raw and first_price_raw and sale_price_raw < first_price_raw:
+        first_price = first_price_raw
+        sale_price = sale_price_raw
+    else:
+        first_price = first_price_raw if first_price_raw else sale_price_raw
+        sale_price = None
 
     gender_map = {
         "Мужчинам": ["man"],
@@ -84,19 +91,24 @@ def parse_product(product, cat_id):
     }
     manual_cat = manual_category_map.get(cat_id)
     category_data = specifications.get("category", {}).get("path", "")
-    category_from_path = list(set(category_data.split(" / "))) if category_data else []
-    category = [manual_cat] + category_from_path if manual_cat else category_from_path
+    category_from_path = category_data.split(" / ") if category_data else []
+    
+    category_from_path_clean = [c.strip() for c in category_from_path if c.strip() and c.strip().lower() != "обувь"]
+    
+    category = []
+    if manual_cat:
+        category.append(manual_cat)
+    for cat in category_from_path_clean:
+        if cat not in category:
+            category.append(cat)
 
     return {
         "shop": "FG group",
         "name": name,
         "brand": brand,
         "category": category,
-        "gender": gender,
-        "colors": [color] if color else [],
-        "images": images,
+        "images": images if images else [],
         "link": link,
-        "sizes": sizes,
         "first_price": first_price,
         "sale_price": sale_price,
     }
@@ -105,7 +117,15 @@ def parse_fg_group():
     parsed_products = []
 
     for cat_id in FG_CATEGORIES:
-        for page_number in range(1, PAGE_LIMIT + 1):
+        page_number = 1
+        seen_links = set()
+        total_pages = None
+        
+        while True:
+            if page_number > MAX_PAGES:
+                logging.warning(f"Достигнут лимит {MAX_PAGES} страниц для категории {cat_id}, останавливаемся")
+                break
+                
             logging.info(f"📦 Категория {cat_id} — парсим страницу {page_number}")
 
             url = (
@@ -116,17 +136,44 @@ def parse_fg_group():
 
             data = fetch_json(url)
             if not data:
-                logging.warning(f"⚠️ Нет данных для категории {cat_id} на странице {page_number}")
+                logging.warning(f"⚠️ Нет данных для категории {cat_id} на странице {page_number}, останавливаемся")
                 break
+
+            if total_pages is None and "pagination" in data:
+                pagination = data.get("pagination", {})
+                if isinstance(pagination, dict):
+                    total_pages = (
+                        pagination.get("totalPages") or
+                        pagination.get("total_pages") or
+                        pagination.get("pages") or
+                        pagination.get("lastPage") or
+                        None
+                    )
+                    if total_pages:
+                        logging.info(f"📊 Категория {cat_id}: всего страниц {total_pages}")
 
             products = data.get("products", [])
             if not products:
-                logging.info(f"✅ Категория {cat_id} — страница {page_number} пуста, остановка.")
+                logging.info(f"✅ Категория {cat_id} — страница {page_number} пуста, парсинг завершен")
                 break
 
-            for product in products:
-                parsed_products.append(parse_product(product, cat_id))
+            logging.info(f"Страница {page_number}: найдено {len(products)} товаров")
 
+            for product in products:
+                parsed = parse_product(product, cat_id)
+                if parsed:
+                    if parsed["link"] in seen_links:
+                        continue
+                    seen_links.add(parsed["link"])
+                    parsed_products.append(parsed)
+            
+            if total_pages and page_number >= total_pages:
+                logging.info(f"Достигнута последняя страница ({total_pages}) для категории {cat_id}")
+                break
+            
+            page_number += 1
+
+    logging.info(f"✅ FG Group: всего собрано {len(parsed_products)} товаров")
     return parsed_products
 
 if __name__ == "__main__":
