@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from sqlalchemy import func, and_, or_, select
 from sqlalchemy.orm import Session
@@ -21,109 +21,196 @@ def _norm(text: str) -> str:
 def _tokens(text: str) -> List[str]:
     return [t for t in _norm(text).split() if len(t) >= 2]
 
-def _name_expr():
-    # unaccent + lower for tolerant matches
-    return func.unaccent(func.lower(Product.name))
-
-def _brand_expr():
-    return func.unaccent(func.lower(Product.brand))
-
-def _cat_text_expr():
-    # string view of the category array (for debugging or optional LIKE filters)
-    return func.coalesce(func.array_to_string(Product.category, " "), "")
+# Удалены _name_expr() и _brand_expr() - используем напрямую Product.name.ilike() и Product.brand.ilike()
+# ILIKE уже case-insensitive, не нужен func.lower()
 
 # ----------------- dictionaries from DB -----------------
 
 def _fetch_distinct_categories(db: Session) -> list[str]:
-    # SELECT DISTINCT lower(unnest(category)) FROM products WHERE category IS NOT NULL;
+    """Получает все уникальные категории из БД (lowercase для сравнения)"""
     stmt = (
         select(func.distinct(func.lower(func.unnest(Product.category))).label("cat"))
         .where(Product.category.is_not(None))
     )
-    return [row[0] for row in db.execute(stmt).all()]
+    result = db.execute(stmt).all()
+    return [row[0] for row in result if row[0]]
 
 def _fetch_distinct_brands(db: Session) -> list[str]:
-    # SELECT DISTINCT lower(brand) FROM products WHERE brand IS NOT NULL;
+    """Получает все уникальные бренды из БД (lowercase для сравнения)"""
     stmt = (
         select(func.distinct(func.lower(Product.brand)).label("brand"))
         .where(Product.brand.is_not(None))
+        .where(Product.brand != "")
     )
-    return [row[0] for row in db.execute(stmt).all()]
+    result = db.execute(stmt).all()
+    return [row[0] for row in result if row[0]]
 
 # ----------------- core search -----------------
 
-def search_products(db: Session, q: str, page: int = 1, per_page: int = 24) -> Dict[str, Any]:
+def search_products(
+    db: Session, 
+    q: str, 
+    page: int = 1, 
+    per_page: int = 28,
+    sort: str = "relevance",
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None
+) -> Dict[str, Any]:
+    """
+    Безопасный поиск с улучшенной логикой:
+    - Ищет в name ВСЕГДА (не только когда нет категорий)
+    - Комбинирует категории, бренды и name
+    - Сортировка применяется ДО пагинации
+    - Фильтры по цене
+    """
+    
     tokens = _tokens(q)
+    
     if not tokens:
-        return {"items": [], "page": page, "per_page": per_page, "total": 0, "meta": {"detected": {}}}
+        return {
+            "items": [], 
+            "page": page, 
+            "per_page": per_page, 
+            "total": 0,
+            "total_pages": 0
+        }
 
-    # 1) Detect categories and (exact) brands from DB dictionaries
     cat_set = set(_fetch_distinct_categories(db))
-    brand_set = set(_fetch_distinct_brands(db))
-
-    cat_tokens = [t for t in tokens if t in cat_set]
-    brand_tokens_exact = [t for t in tokens if t in brand_set]
-    other_tokens = [t for t in tokens if t not in cat_set]  # candidates for brand or name
+    
+    brand_tokens_exact = []
+    cat_tokens = []
+    name_tokens = []
+    
+    for t in tokens:
+        if not t or len(t) < 2:
+            continue
+            
+        exists = db.execute(
+            select(Product.id)
+            .where(Product.brand.is_not(None))
+            .where(Product.brand != "")
+            .where(Product.brand.ilike(f"%{t}%"))
+            .limit(1)
+        ).first()
+        if exists:
+            brand_tokens_exact.append(t)
+        else:
+            if t in cat_set:
+                cat_tokens.append(t)
+            else:
+                name_tokens.append(t)
 
     q_sql = db.query(Product)
 
-    # 2) Category-first filter (exact overlap with array values)
     if cat_tokens:
-        # translates to: product.category && ARRAY[:cat_tokens]
         q_sql = q_sql.filter(Product.category.overlap(cat_tokens))
 
-    # 3) Brand filter
-    tokens_for_brand: List[str] = brand_tokens_exact[:]
-
-    if not tokens_for_brand:
-        # Guarded fuzzy: only treat a token as brand if at least one row matches ILIKE
-        valid = []
-        for t in other_tokens:
-            pattern = f"%{t}%"
-            exists = db.execute(
-                select(Product.id).where(Product.brand.ilike(pattern)).limit(1)
-            ).first()
-            if exists:
-                valid.append(t)
-        tokens_for_brand = valid
-
-    if tokens_for_brand:
-        brand = _brand_expr()
-        # fuzzy brand: ILIKE OR trigram similarity
-        brand_conds = [or_(brand.ilike(f"%{t}%"), func.similarity(brand, t) >= 0.4) for t in tokens_for_brand]
+    if brand_tokens_exact:
+        brand_conds = [
+            and_(
+                Product.brand.is_not(None),
+                Product.brand != "",
+                Product.brand.ilike(f"%{t}%")
+            )
+            for t in brand_tokens_exact
+        ]
         q_sql = q_sql.filter(or_(*brand_conds))
 
-    # 4) Name fallback (only if user didn't hit a category)
-    if not cat_tokens:
-        name = _name_expr()
-        # AND all tokens in name for a precise fallback
-        name_conds = [name.ilike(f"%{t}%") for t in tokens]
+    if name_tokens:
+        name_conds = [
+            and_(
+                Product.name.is_not(None),
+                Product.name != "",
+                Product.name.ilike(f"%{t}%")
+            )
+            for t in name_tokens
+        ]
         q_sql = q_sql.filter(and_(*name_conds))
+    elif brand_tokens_exact and not cat_tokens:
+        name_conds = [
+            and_(
+                Product.name.is_not(None),
+                Product.name != "",
+                Product.name.ilike(f"%{t}%")
+            )
+            for t in brand_tokens_exact
+        ]
+        q_sql = q_sql.filter(or_(*name_conds))
 
-    # 5) Sorting
-    if cat_tokens:
-        # When user asked a category, cheaper first feels right
+    if min_price is not None or max_price is not None:
+        price_conditions = []
+        
+        if min_price is not None:
+            price_conditions.append(
+                or_(
+                    Product.sale_price >= min_price,
+                    and_(
+                        Product.sale_price.is_(None),
+                        Product.first_price >= min_price
+                    )
+                )
+            )
+        
+        if max_price is not None:
+            price_conditions.append(
+                or_(
+                    Product.sale_price <= max_price,
+                    and_(
+                        Product.sale_price.is_(None),
+                        Product.first_price <= max_price
+                    )
+                )
+            )
+        
+        if price_conditions:
+            q_sql = q_sql.filter(and_(*price_conditions))
+
+    if sort == "price_asc":
         q_sql = q_sql.order_by(
             Product.sale_price.asc().nulls_last(),
-            Product.first_price.asc().nulls_last(),
+            Product.first_price.asc().nulls_last()
+        )
+    elif sort == "price_desc":
+        q_sql = q_sql.order_by(
+            Product.sale_price.desc().nulls_last(),
+            Product.first_price.desc().nulls_last()
         )
     else:
-        # Name/brand only: show newest-ish
-        q_sql = q_sql.order_by(Product.id.desc())
+        if cat_tokens:
+            q_sql = q_sql.order_by(
+                Product.sale_price.asc().nulls_last(),
+                Product.first_price.asc().nulls_last()
+            )
+        else:
+            q_sql = q_sql.order_by(Product.id.desc())
 
-    # 6) Pagination + projection
     total = q_sql.count()
+    total_pages = (total + per_page - 1) // per_page
+
+    offset = (page - 1) * per_page
+    
+    if page > total_pages and total_pages > 0:
+        return {
+            "items": [],
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "total_pages": total_pages,
+        }
+    
     rows = (
         q_sql.with_entities(
             Product.id,
             Product.name,
-            Product.fam_category,
             Product.category,
             Product.brand,
             Product.sale_price,
             Product.first_price,
+            Product.images,
+            Product.link,
+            Product.shop,
         )
-        .offset((page - 1) * per_page)
+        .offset(offset)
         .limit(per_page)
         .all()
     )
@@ -132,11 +219,13 @@ def search_products(db: Session, q: str, page: int = 1, per_page: int = 24) -> D
         dict(
             id=r[0],
             name=r[1],
-            fam_category=r[2],
-            category=r[3],
-            brand=r[4],
-            sale_price=r[5],
-            first_price=r[6],
+            category=r[2] or [],
+            brand=r[3],
+            sale_price=r[4],
+            first_price=r[5],
+            images=r[6] or [],
+            link=r[7],
+            shop=r[8],
         )
         for r in rows
     ]
@@ -146,12 +235,5 @@ def search_products(db: Session, q: str, page: int = 1, per_page: int = 24) -> D
         "page": page,
         "per_page": per_page,
         "total": total,
-        "meta": {
-            "mode": "category-first" if cat_tokens else "name-first",
-            "detected": {
-                "category_tokens": cat_tokens,
-                "brand_tokens": tokens_for_brand,
-                "name_tokens": [] if cat_tokens else tokens,
-            },
-        },
+        "total_pages": total_pages,
     }
