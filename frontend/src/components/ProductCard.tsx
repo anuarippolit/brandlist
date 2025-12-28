@@ -1,144 +1,28 @@
-// import { useState, useEffect } from 'react';
-
-// const ProductCard = ({
-//   product,
-//   onClick,
-// }: {
-//   product: {
-//     id: number;
-//     name: string;
-//     sale_price: number;
-//     first_price?: number;
-//     brand: string;
-//     shop: string;
-//     images: string[];
-//     link: string;
-//     category: string[];
-//   };
-//   onClick?: () => void;
-// }) => {
-//   const [isFavorited, setIsFavorited] = useState(false);
-
-//   useEffect(() => {
-//     const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-//     setIsFavorited(
-//       favorites.some((fav: { id: number }) => fav.id === product.id)
-//     );
-//   }, [product.id]);
-
-//   const handleFavoriteToggle = (e: React.MouseEvent) => {
-//     e.stopPropagation();
-
-//     let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-
-//     if (isFavorited) {
-//       favorites = favorites.filter(
-//         (fav: { id: number }) => fav.id !== product.id
-//       );
-//     } else {
-//       favorites.push(product);
-//     }
-
-//     localStorage.setItem('favorites', JSON.stringify(favorites));
-//     setIsFavorited(!isFavorited);
-//   };
-
-//   return (
-//     <div
-//       className="bg-neutral-900 p-[5px] sm:p-[10px] rounded-lg shadow-md hover:shadow-lg cursor-pointer font-inter font-normal flex flex-col h-full" // instead of w-full flex flex-col h-full
-//       onClick={onClick}
-//     >
-//       {/* <div className="bg-gray-200 aspect-[4/5] w-full rounded-lg mb-4 relative overflow-hidden ">
-//         <img
-//           src={product.image_url}
-//           alt={product.name}
-//           className="h-full w-full object-cover rounded-lg"
-//         />
-//         <button
-//           className="absolute top-2 right-2 text-white"
-//           onClick={handleFavoriteToggle}
-//         >
-//           <img
-//             src={
-//               isFavorited ? '/images/filledheart.png' : '/images/blackheart.png'
-//             }
-//             alt="Favorite"
-//             className="w-[20px] h-[18px]"
-//           />
-//         </button>
-//       </div> */}
-//       <div className="bg-gray-200 aspect-[3/4] w-full rounded-lg mb-4 relative overflow-hidden">
-//         <img
-//           src={product.images?.[0] || '/images/no-image.png'} // fallback if empty
-//           alt={product.name}
-//           className="h-full w-full object-cover rounded-lg"
-//         />
-//         <button
-//           className="absolute top-2 right-2 text-white"
-//           onClick={handleFavoriteToggle}
-//         >
-//           <img
-//             src={
-//               isFavorited ? '/images/filledheart.png' : '/images/blackheart.png'
-//             }
-//             alt="Favorite"
-//             className="w-[20px] h-[18px]"
-//           />
-//         </button>
-//       </div>
-
-//       <div>
-//         <p className="text-[14px] sm:text-[16px] font-normal text-white">
-//           {product.sale_price
-//             ? product.sale_price.toLocaleString()
-//             : 'Цена не указана'}{' '}
-//           ₸{' '}
-//           {product.first_price &&
-//             product.first_price !== product.sale_price && (
-//               <span className="text-[#919191] line-through text-[16px]">
-//                 {product.first_price.toLocaleString()} ₸
-//               </span>
-//             )}
-//         </p>
-//         <p className="text-[14px] sm:text-[16px] font-medium mt-2 text-white">
-//           {product.name}
-//         </p>
-//         <p className="font-normal text-[12px] sm:text-[14px] mt-2 text-white">
-//           {product.brand}
-//         </p>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default ProductCard;
+'use client';
 
 import { useState, useEffect } from 'react';
 
-const ProductCard = ({
-  product,
-  onClick,
-}: {
+interface ProductCardProps {
   product: {
     id: number;
     name: string;
-    sale_price: number;
-    first_price?: number;
-    brand: string;
+    sale_price: number | null;
+    first_price?: number | null;
+    brand: string | null;
     shop: string;
     images: string[];
-    link: string;
+    link: string | null;
     category: string[];
   };
   onClick?: () => void;
-}) => {
+}
+
+const ProductCard = ({ product, onClick }: ProductCardProps) => {
   const [isFavorited, setIsFavorited] = useState(false);
 
   useEffect(() => {
     const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-    setIsFavorited(
-      favorites.some((fav: { id: number }) => fav.id === product.id)
-    );
+    setIsFavorited(favorites.some((fav: { id: number }) => fav.id === product.id));
   }, [product.id]);
 
   const handleFavoriteToggle = (e: React.MouseEvent) => {
@@ -147,61 +31,77 @@ const ProductCard = ({
     let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
 
     if (isFavorited) {
-      favorites = favorites.filter(
-        (fav: { id: number }) => fav.id !== product.id
-      );
+      favorites = favorites.filter((fav: { id: number }) => fav.id !== product.id);
     } else {
       favorites.push(product);
     }
 
     localStorage.setItem('favorites', JSON.stringify(favorites));
     setIsFavorited(!isFavorited);
+    
+    // Trigger storage event for other components
+    window.dispatchEvent(new Event('storage'));
   };
 
   return (
     <div
-      className="bg-neutral-900 p-[6px] sm:p-[10px] rounded-lg shadow-md hover:shadow-lg cursor-pointer font-inter font-normal flex flex-col h-full"
+      className="cursor-pointer flex flex-col h-full"
       onClick={onClick}
     >
-      <div className="bg-gray-200 w-full aspect-[4/5] sm:aspect-[3/4] rounded-lg mb-4 relative overflow-hidden">
+      {/* Image with 3:4 aspect ratio */}
+      <div className="w-full aspect-[4/5] mb-4 relative overflow-hidden bg-gray-100">
         <img
           src={product.images?.[0] || '/images/no-image.png'}
           alt={product.name}
-          className="h-full w-full object-cover rounded-lg"
+          className="h-full w-full object-cover"
+          onError={(e) => {
+            e.currentTarget.src = '/images/no-image.png';
+          }}
         />
         <button
-          className="absolute top-2 right-2 text-white"
+          className="absolute top-2 right-2 p-2 hover:opacity-70 transition-opacity"
           onClick={handleFavoriteToggle}
         >
-          <img
-            src={
-              isFavorited ? '/images/filledheart.png' : '/images/blackheart.png'
-            }
-            alt="Favorite"
-            className="w-[20px] h-[18px]"
-          />
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill={isFavorited ? '#000000' : 'none'}
+            stroke={isFavorited ? '#000000' : '#000000'}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-black"
+          >
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+          </svg>
         </button>
       </div>
 
-      <div>
-        <p className="text-[16px] sm:text-[18px] font-normal text-white">
-          {product.sale_price
-            ? product.sale_price.toLocaleString()
-            : 'Цена не указана'}{' '}
-          ₸{' '}
-          {product.first_price &&
-            product.first_price !== product.sale_price && (
-              <span className="text-[#919191] line-through text-[16px] sm:text-[18px]">
+      {/* Text content - left aligned */}
+      <div className="text-left">
+        <p className="text-black text-base font-medium mb-1 font-montserrat">{product.name}</p>
+        {product.brand && (
+          <p className="text-gray-600 text-sm mb-2 font-montserrat">{product.brand}</p>
+        )}
+        <div className="flex items-baseline gap-2">
+          {product.sale_price !== null ? (
+            <>
+              {product.first_price && product.first_price !== product.sale_price && (
+                <p className="text-gray-400 text-xs line-through font-montserrat">
                 {product.first_price.toLocaleString()} ₸
-              </span>
+                </p>
             )}
+              <p className="text-black text-base font-medium font-montserrat">
+                {product.sale_price.toLocaleString()} ₸
         </p>
-        <p className="text-[16px] sm:text-[18px] font-medium mt-2 text-white">
-          {product.name}
+            </>
+          ) : (
+            <p className="text-black text-base font-medium font-montserrat">
+              {product.first_price ? `${product.first_price.toLocaleString()} ₸` : 'Цена не указана'}
         </p>
-        <p className="font-normal text-[14px] sm:text-[16px] mt-2 text-white">
-          {product.brand}
-        </p>
+          )}
+        </div>
       </div>
     </div>
   );

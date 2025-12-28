@@ -1,22 +1,20 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
-import Breadcrumb from '@/components/Breadcrumb';
-import Navbar from '@/components/Navbar';
+import { useRouter } from 'next/navigation';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 interface Product {
   id: number;
   category: string[];
   name: string;
-  brand: string;
-  description?: string;
-  sale_price: number;
-  first_price?: number;
-  colors: string[];
+  brand: string | null;
+  sale_price: number | null;
+  first_price?: number | null;
   images: string[];
-  sizes: string[];
+  link: string | null;
   shop: string;
-  link: string;
 }
 
 interface Props {
@@ -28,24 +26,19 @@ interface Props {
 
 export default function ProductDetail({ params }: Props) {
   const { query, productId } = use(params);
+  const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isFavorited, setIsFavorited] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/products/${productId}`
-        );
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const response = await fetch(`${apiUrl}/api/products/${productId}`);
         if (!response.ok) throw new Error(`Status: ${response.status}`);
         const data = await response.json();
         setProduct(data);
-
-        const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-        setIsFavorited(
-          favorites.some((fav: { id: number }) => fav.id === data.id)
-        );
       } catch (error) {
         console.error('Fetch error:', error);
       } finally {
@@ -54,144 +47,142 @@ export default function ProductDetail({ params }: Props) {
     };
 
     fetchProduct();
-  }, [productId, query]);
+  }, [productId]);
 
-  const handleFavoriteToggle = () => {
-    if (!product) return;
-    let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-
-    if (isFavorited) {
-      favorites = favorites.filter(
-        (fav: { id: number }) => fav.id !== product.id
-      );
-    } else {
-      favorites.push(product);
-    }
-
-    localStorage.setItem('favorites', JSON.stringify(favorites));
-    setIsFavorited(!isFavorited);
-  };
-
-  if (loading)
-    return <div className="text-white text-center mt-6">Loading...</div>;
-  if (!product)
+  if (loading) {
     return (
-      <div className="text-gray-400 text-center mt-6">Продукт не найден.</div>
-    );
-
-  return (
-    <div className="bg-black text-white min-h-screen">
-      <Navbar />
-      <Breadcrumb
-        breadcrumbs={[
-          { label: 'Поиск', href: '/home' },
-          { label: query || '...', href: `/search/${query}` },
-          { label: product.name },
-        ]}
-      />
-
-      {/* Layout Wrapper */}
-      <div className="flex justify-center mt-4 px-4">
-        <div className="flex flex-col lg:flex-row gap-[10px] sm:gap-6 w-full max-w-[1050px]">
-          {/* Images */}
-          <div className="w-full lg:flex-[3] grid grid-rows-2 gap-4">
-            {/* First row: 2 columns */}
-            <div className="grid grid-cols-2 gap-4">
-              {product.images?.slice(0, 2).map((img, index) => (
-                <div
-                  key={index}
-                  className="bg-gray-200 aspect-[3/4] w-full rounded-lg relative overflow-hidden"
-                >
-                  <img
-                    src={img}
-                    alt={`${product.name} ${index + 1}`}
-                    className="absolute top-0 left-0 w-full h-full object-cover rounded-lg"
-                    onError={(e) => {
-                      e.currentTarget.src = '/images/no-image.png';
-                    }}
-                  />
-                  {index === 1 && (
-                    <button
-                      className="absolute top-2 right-2 text-white"
-                      onClick={handleFavoriteToggle}
-                    >
-                      <img
-                        src={
-                          isFavorited
-                            ? '/images/filledheart.png'
-                            : '/images/blackheart.png'
-                        }
-                        alt="Favorite"
-                        className="w-[20px] h-[18px]"
-                      />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Second row: 3 columns */}
-            <div className="grid grid-cols-3 gap-4">
-              {product.images?.slice(2, 5).map((img, index) => (
-                <div
-                  key={index + 2}
-                  className="bg-gray-200 aspect-[3/4] w-full rounded-lg relative overflow-hidden"
-                >
-                  <img
-                    src={img}
-                    alt={`${product.name} ${index + 3}`}
-                    className="absolute top-0 left-0 w-full h-full object-cover rounded-lg"
-                    onError={(e) => {
-                      e.currentTarget.src = '/images/no-image.png';
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Product Info */}
-          <div className="w-full lg:flex-[2] bg-[#171717] p-6 rounded-lg font-inter h-auto my-[20px] -mt-[80px] sm:mt-0 lg:h-[650px] lg:my-0">
-            {/* 1. Brand */}
-            <h2 className="text-[20px] font-[500]">{product.brand}</h2>
-
-            {/* 2. Price */}
-            <div className="flex gap-3 mt-[14px]">
-              {product.first_price &&
-                product.first_price !== product.sale_price && (
-                  <p className="text-[#919191] line-through text-[16px]">
-                    {product.first_price.toLocaleString()} ₸
-                  </p>
-                )}
-              <p className="text-white text-[16px]">
-                {product.sale_price.toLocaleString()} ₸
-              </p>
-            </div>
-
-            {/* 3. Button */}
-            <a
-              href={product.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-customPurple px-8 py-3 rounded-3xl text-white font-[500] hover:bg-purple-500 text-[16px] text-center inline-block mt-[20px]"
-            >
-              В магазине {product.shop}
-            </a>
-
-            {/* 4. Sizes */}
-            <div className="mt-[20px] flex flex-wrap gap-2">
-              {product?.sizes?.map((size, index) => (
-                <span
-                  key={index}
-                  className="text-[#919191] border border-[#919191] px-3 py-1 rounded-xl text-center text-sm"
-                >
-                  {size}
-                </span>
-              ))}
-            </div>
+      <div className="bg-white min-h-screen">
+        <div className="max-w-[1500px] mx-auto px-8">
+          <Header />
+          <div className="text-center py-12">
+            <p className="text-gray-400 font-montserrat">Загрузка...</p>
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="bg-white min-h-screen">
+        <div className="max-w-[1500px] mx-auto px-8">
+          <Header />
+          <div className="text-center py-12">
+            <p className="text-gray-400 font-montserrat">Продукт не найден.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const images = product.images || [];
+  const mainImage = images[selectedImageIndex] || images[0] || '/images/no-image.png';
+  const lastCategory = product.category && product.category.length > 0 
+    ? product.category[product.category.length - 1] 
+    : null;
+
+  return (
+    <div className="bg-white min-h-screen flex flex-col">
+      <div className="max-w-[1500px] mx-auto px-8 mb-36 flex-1">
+        <Header />
+        <div className="py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
+          {/* Left: Images */}
+          <div>
+            {/* Main big image */}
+            <div className="w-full aspect-square mb-4 rounded-lg overflow-hidden bg-gray-100">
+              <img
+                src={mainImage}
+                alt={product.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = '/images/no-image.png';
+                }}
+              />
+            </div>
+            
+            {/* Thumbnail list */}
+            {images.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto">
+                {images.map((img, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImageIndex(index)}
+                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 ${
+                      selectedImageIndex === index ? 'border-black' : 'border-gray-200'
+                    }`}
+                  >
+                    <img
+                      src={img}
+                      alt={`${product.name} ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = '/images/no-image.png';
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right: Product Info */}
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-bold text-black mb-4 font-montserrat text-left">{product.name}</h1>
+            
+            {product.brand && (
+              <p className="text-xl text-gray-600 mb-4 font-montserrat text-left">{product.brand}</p>
+            )}
+
+            {lastCategory && (
+              <p className="text-lg text-gray-500 mb-4 font-montserrat text-left">{lastCategory}</p>
+            )}
+
+            {/* Prices */}
+            <div className="flex items-baseline gap-3 mb-6 text-left">
+              {product.sale_price !== null ? (
+                <>
+                  {product.first_price && product.first_price !== product.sale_price && (
+                  <p className="text-gray-400 text-lg line-through font-montserrat">
+                    {product.first_price.toLocaleString()} ₸
+                  </p>
+                  )}
+                  <p className="text-2xl font-bold text-black font-montserrat">
+                    {product.sale_price.toLocaleString()} ₸
+                  </p>
+                </>
+              ) : (
+                <p className="text-2xl font-bold text-black font-montserrat">
+                  {product.first_price ? `${product.first_price.toLocaleString()} ₸` : 'Цена не указана'}
+                </p>
+              )}
+            </div>
+
+            {/* Buy now button */}
+            {product.link && (
+              <a
+                href={product.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-black text-white px-12 py-4 rounded-full hover:opacity-90 transition-opacity text-lg font-medium text-center inline-block w-fit font-montserrat mb-4"
+              >
+                Перейти в магазин
+              </a>
+            )}
+
+            {/* Brandlist info block */}
+            <div className="bg-[#5291f7] text-white px-12 py-4 w-fit mt-16 relative">
+              <div className="absolute -top-3 -left-3 w-12 h-12" style={{ borderTop: '6px solid black', borderLeft: '6px solid black' }}></div>
+              <div className="absolute -bottom-3 -right-3 w-12 h-12" style={{ borderBottom: '6px solid black', borderRight: '6px solid black' }}></div>
+              <div className="text-white text-xl font-montserrat leading-relaxed">
+                Проверенно Brandlist на оригинальность товара 🤖
+              </div>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+      <Footer />
     </div>
   );
 }

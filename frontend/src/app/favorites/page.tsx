@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Navbar from '@/components/Navbar';
-import ProductGrid from '@/components/ProductGrid';
 import { useRouter } from 'next/navigation';
-import Breadcrumb from '@/components/Breadcrumb';
+import Header from '@/components/Header';
+import SearchBar from '@/components/SearchBar';
+import ProductGrid from '@/components/ProductGrid';
+import Footer from '@/components/Footer';
 
 const FavoritesPage = () => {
   const [favorites, setFavorites] = useState<any[]>([]);
@@ -17,58 +18,58 @@ const FavoritesPage = () => {
     setFavorites(storedFavorites);
   }, []);
 
-  const handleProductClick = (product: { id: number; name: string }) => {
-    router.push(`/search/${encodeURIComponent(product.name)}/${product.id}`);
-  };
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const storedFavorites = JSON.parse(
+        localStorage.getItem('favorites') || '[]'
+      );
+      setFavorites(storedFavorites);
+    };
 
-  const handleFavoriteToggle = (productId: number) => {
-    const updatedFavorites = favorites.filter((fav) => fav.id !== productId);
-    setFavorites(updatedFavorites);
-    localStorage.setItem('favorites', JSON.stringify(updatedFavorites));
-  };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   return (
-    <div className="bg-black min-h-screen">
-      <Navbar />
-      <Breadcrumb breadcrumbs={[{ label: '', href: '' }]} />
-      {/* <h1 className="text-[35px] font-normal mb-6 ml-4 sm:ml-[365px] mt-[10px] ">Избранное</h1>
-      {favorites.length > 0 ? (
-        <ProductGrid
-        products={favorites.map((product) => ({
-          ...product,
-          name: product.name.length > 17 ? product.name.slice(0, 17) + "..." : product.name,
-          onClick: () => handleProductClick(product),
-        }))}
-      />      
-      ) : (
-      <div className="flex flex-grow items-center justify-center">
-        <p className="text-gray-400 text-xl">Нет избранных товаров.</p>
-      </div>       */}
-      <main className="px-8">
-        <h1 className="text-[35px] font-normal mb-6 ml-4 sm:ml-[340px] mt-[10px] text-white">
-          Избранное
-        </h1>
-        {favorites.length > 0 ? (
-          <ProductGrid
-            products={favorites.map((product) => ({
-              id: product.id,
-              name: product.name,
-              brand: product.brand,
-              shop: product.shop,
-              sale_price: product.sale_price,
-              first_price: product.first_price,
-              category: product.category,
-              link: product.link,
-              images: product.images || [], // fallback for card
-              onClick: () => handleProductClick(product),
-            }))}
-          />
-        ) : (
-          <div className="flex flex-grow items-center justify-center mt-10">
-            <p className="text-gray-400 text-xl">Нет избранных товаров.</p>
+    <div className="bg-black min-h-screen flex flex-col">
+      {/* Navbar - separate zone with Header */}
+      <div className="bg-white">
+        <div className="max-w-[calc(100vw-64px)] mx-auto px-4 sm:px-6 md:px-8">
+          <Header />
+        </div>
+      </div>
+
+      {/* Main content block - card container */}
+      <div className="flex-1 bg-white">
+        <div 
+          className="mx-4 sm:mx-6 md:mx-8"
+          style={{
+            backgroundColor: '#f3f0e9',
+            boxShadow: 'inset 0 0 2px rgba(0, 0, 0, 0.02)',
+            borderTopLeftRadius: '1.5rem',
+            borderTopRightRadius: '1.5rem',
+          }}
+        >
+          <div className="px-4 sm:px-8 md:px-12 lg:px-16 py-8 sm:py-10 md:py-12">
+            <div className="py-4">
+              <SearchBar />
+            </div>
+            <h1 className="text-3xl font-bold text-black mb-8 mt-8 font-montserrat">Избранное</h1>
+            <ProductGrid
+              products={favorites.map((product) => ({
+                ...product,
+                onClick: () => {
+                  const query = encodeURIComponent(product.name || '');
+                  router.push(`/search/${query}/${product.id}`);
+                },
+              }))}
+            />
           </div>
-        )}
-      </main>
+        </div>
+      </div>
+
+      {/* Footer - separate zone */}
+      <Footer />
     </div>
   );
 };
