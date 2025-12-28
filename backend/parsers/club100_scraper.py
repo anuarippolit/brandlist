@@ -7,13 +7,14 @@ import re
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-BASE_URL = "https://www.club100.kz/katalog/obuv/"
-ALTERNATIVE_CATEGORIES = [
-    "https://www.club100.kz/katalog/obuv/category%3Akrossovki/",
-    "https://www.club100.kz/katalog/obuv/category%3Abotinki/",
-    "https://www.club100.kz/katalog/obuv/brand%3Anike/",
+PAGES = [
+    "https://www.club100.kz/katalog/obuv/?p=2&p=0",
+    "https://www.club100.kz/katalog/obuv/?p=1",
+    "https://www.club100.kz/katalog/obuv/?p=1&p=2",
+    "https://www.club100.kz/katalog/obuv/?p=2&p=3",
+    "https://www.club100.kz/katalog/obuv/?p=3&p=4",
+    "https://www.club100.kz/katalog/obuv/?p=4&p=5",
 ]
-MAX_PAGES = 1000
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
@@ -51,17 +52,6 @@ def parse_product_card(card):
         
         if not name:
             return None
-        name_lower = name.lower()
-        if "nike" in name_lower:
-            brand = "Nike"
-        elif "jordan" in name_lower:
-            brand = "Jordan"
-        elif "adidas" in name_lower:
-            brand = "Adidas"
-        elif "puma" in name_lower:
-            brand = "Puma"
-        else:
-            brand = name.split()[0] if name else "Unknown Brand"
 
         price_text = ""
         next_element = card.find_next_sibling(['div', 'section', 'span'])
@@ -78,29 +68,14 @@ def parse_product_card(card):
             sale_price = None
             first_price = None
 
-        images = []
-        covers = card.select_one('.covers')
-        if covers:
-            img_tags = covers.find_all('img')
-            for img_tag in img_tags:
-                img_src = img_tag.get('data-image') or img_tag.get('src')
-                if img_src:
-                    if not img_src.startswith("http"):
-                        img_src = "https://www.club100.kz" + img_src
-                    img_src = img_src.split('?')[0]
-                    if img_src not in images:
-                        images.append(img_src)
-
         category = ["Обувь"]
 
         return {
             "shop": "Club100",
             "name": name,
-            "brand": brand,
             "link": link,
-            "images": images,
             "first_price": first_price,
-            "sale_price": sale_price or first_price,
+            "sale_price": sale_price,
             "category": category,
         }
     except Exception as e:
@@ -108,31 +83,35 @@ def parse_product_card(card):
         return None
 
 def parse_product_details(product_url):
+    """Парсит brand и images со страницы товара"""
     html = fetch_html(product_url)
     if not html:
         return {}
 
     soup = BeautifulSoup(html, "html.parser")
 
+    brand = None
+    brand_divs = soup.select('div.parameter.r[itemprop="brand"]')
+    if brand_divs:
+        first_brand_div = brand_divs[0]
+        values_spans = first_brand_div.select('span.values')
+        if len(values_spans) >= 2:
+            brand = values_spans[1].get_text(strip=True)
+        elif len(values_spans) >= 1:
+            brand = values_spans[0].get_text(strip=True)
+
     images = []
-    image_selectors = [
-        ".product-images img",
-        ".product-gallery img",
-        ".product-photos img",
-        ".gallery img",
-        "img.product-image",
-        ".swiper-slide img"
-    ]
-    for selector in image_selectors:
-        img_tags = soup.select(selector)
-        for img in img_tags:
-            img_src = img.get("src") or img.get("data-src") or img.get("data-lazy-src") or img.get("data-zoom-image")
-            if img_src and img_src not in images:
-                if not img_src.startswith("http"):
-                    img_src = "https://www.club100.kz" + img_src
-                images.append(img_src)
-        if images:
-            break
+    photo_list = soup.select_one('div.photoList')
+    if photo_list:
+        link_tags = photo_list.find_all('link', itemprop='image')
+        for link_tag in link_tags:
+            img_href = link_tag.get('href', '')
+            if img_href:
+                if not img_href.startswith("http"):
+                    img_href = "https://www.club100.kz" + img_href
+                img_href = img_href.split('?')[0]
+                if img_href not in images:
+                    images.append(img_href)
 
     categories = ["Обувь"]
     breadcrumb_tags = soup.select(".breadcrumb a, .breadcrumbs a, nav[aria-label='breadcrumb'] a")
@@ -142,74 +121,53 @@ def parse_product_details(product_url):
             categories.append(crumb_text)
 
     return {
+        "brand": brand,
         "images": images if images else None,
         "category": list(set(categories))
     }
 
 def parse_club100():
     parsed_products = []
-
-    urls_to_try = [BASE_URL] + ALTERNATIVE_CATEGORIES
+    seen_links = set()
     
-    for base_url in urls_to_try:
-        page = 1
-        seen_links = set()
+    for page_num, url in enumerate(PAGES, 1):
+        html = fetch_html(url)
+        if not html:
+            logging.warning(f"Не удалось получить HTML для страницы {page_num}, пропускаем")
+            continue
+
+        soup = BeautifulSoup(html, "html.parser")
         
-        while True:
-            if page > MAX_PAGES:
-                logging.warning(f"Достигнут лимит {MAX_PAGES} страниц для {base_url}, останавливаемся")
-                break
+        products_list = soup.select_one('.productsList, .list')
+        if not products_list:
+            logging.warning(f"Не найден контейнер товаров на странице {page_num}")
+            continue
+        
+        cards = products_list.select('.cover')
+        
+        if not cards:
+            logging.info(f"Не найдены товары на странице {page_num}, пропускаем")
+            continue
+
+        logging.info(f"Страница {page_num}: найдено {len(cards)} карточек")
+
+        for card in cards:
+            product = parse_product_card(card)
+            if product and product.get("link"):
+                if product["link"] in seen_links:
+                    continue
+                seen_links.add(product["link"])
                 
-            if page == 1:
-                url = f"{base_url}?p=1&p=0"
-            elif page == 2:
-                url = f"{base_url}?p=1"
-            else:
-                url = f"{base_url}?p={page-2}&p={page-1}"
-            
-            html = fetch_html(url)
-            if not html:
-                logging.warning(f"Не удалось получить HTML для страницы {page}, останавливаемся")
-                break
-
-            soup = BeautifulSoup(html, "html.parser")
-            
-            products_list = soup.select_one('.productsList, .list')
-            if not products_list:
-                logging.warning(f"Не найден контейнер товаров на странице {page}")
-                break
-            
-            cards = products_list.select('.cover')
-            
-            if not cards:
-                logging.info(f"Не найдены товары на странице {page} для {base_url}, парсинг завершен")
-                break
-
-            logging.info(f"Страница {page}: найдено {len(cards)} карточек")
-
-            for card in cards:
-                product = parse_product_card(card)
-                if product and product.get("link"):
-                    if product["link"] in seen_links:
-                        continue
-                    seen_links.add(product["link"])
-                    details = parse_product_details(product["link"])
-                    if details.get("images"):
-                        product["images"] = details["images"]
-                    if details.get("category"):
-                        product["category"] = details["category"]
-                    parsed_products.append(product)
-                time.sleep(1)
-            
-            page += 1
+                details = parse_product_details(product["link"])
+                if details.get("brand"):
+                    product["brand"] = details["brand"]
+                if details.get("images"):
+                    product["images"] = details["images"]
+                if details.get("category"):
+                    product["category"] = details["category"]
+                
+                parsed_products.append(product)
+            time.sleep(1)
 
     logging.info(f"✅ Club100: всего собрано {len(parsed_products)} товаров")
     return parsed_products
-
-if __name__ == "__main__":
-    all_products = parse_club100()
-    print(f"🧪 Всего товаров: {len(all_products)}")
-    for product in all_products[:3]:
-        print("\n" + "-" * 60)
-        for key, val in product.items():
-            print(f"{key}: {val}")

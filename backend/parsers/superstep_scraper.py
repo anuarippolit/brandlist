@@ -329,7 +329,7 @@ def parse_superstep():
                             product["category"] = details["category"]
                         parsed_products.append(product)
                     time.sleep(1)
-                
+
                 page += 1
 
     logging.info(f"✅ SuperStep: всего собрано {len(parsed_products)} товаров")
