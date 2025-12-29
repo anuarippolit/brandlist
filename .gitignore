@@ -60,3 +60,14 @@ next-env.d.ts
 
 # Misc
 *.pem
+
+# Database dumps
+*.sql
+*.dump
+brandlist_db.txt
+
+# SSL certificates
+docker/nginx/ssl/*.pem
+docker/nginx/ssl/*.key
+!docker/nginx/ssl/.gitkeep
+

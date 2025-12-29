@@ -4,6 +4,7 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { trackProductDetailView, trackGoToShopClick } from '@/utils/analytics';
 
 interface Product {
   id: number;
@@ -39,6 +40,11 @@ export default function ProductDetail({ params }: Props) {
         if (!response.ok) throw new Error(`Status: ${response.status}`);
         const data = await response.json();
         setProduct(data);
+        
+        // Track product detail view
+        if (data) {
+          trackProductDetailView(data);
+        }
       } catch (error) {
         console.error('Fetch error:', error);
       } finally {
@@ -164,6 +170,12 @@ export default function ProductDetail({ params }: Props) {
                 href={product.link}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => {
+                  trackGoToShopClick({
+                    ...product,
+                    link: product.link!,
+                  });
+                }}
                 className="bg-black text-white px-12 py-4 rounded-full hover:opacity-90 transition-opacity text-lg font-medium text-center inline-block w-fit font-montserrat mb-4"
               >
                 Перейти в магазин

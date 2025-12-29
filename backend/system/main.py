@@ -13,7 +13,6 @@ app = FastAPI(
     description="Read-only product search API"
 )
 
-# CORS (ограничить origins в production!)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # В production: ["https://yourdomain.com"]
@@ -22,7 +21,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

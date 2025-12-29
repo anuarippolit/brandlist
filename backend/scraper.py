@@ -6,6 +6,7 @@ from parsers.fg_group_scraper import parse_fg_group
 from parsers.club100_scraper import parse_club100
 from parsers.allstars_scraper import parse_allstars
 from parsers.adidas_scraper import parse_adidas
+from parsers.salomon_scraper import parse_salomon
 from utils.db_utils import save_products_to_db
 
 logging.basicConfig(
@@ -32,9 +33,10 @@ async def run_scraper():
         asyncio.to_thread(parse_club100),
         asyncio.to_thread(parse_allstars),
         asyncio.to_thread(parse_adidas),
+        asyncio.to_thread(parse_salomon),
     ]
 
-    parser_names = ["SuperStep", "FG Group", "Club100", "All-Stars", "Adidas"]
+    parser_names = ["SuperStep", "FG Group", "Club100", "All-Stars", "Adidas", "Salomon"]
     
     logging.info(f"📡 Запущено {len(parser_names)} парсеров параллельно...")
     

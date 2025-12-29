@@ -1,4 +1,3 @@
-# system/app/search.py
 from __future__ import annotations
 
 import re
@@ -9,9 +8,6 @@ from sqlalchemy.orm import Session
 
 from system.db.models import Product
 
-
-# ----------------- utils -----------------
-
 def _norm(text: str) -> str:
     s = (text or "").lower()
     s = re.sub(r"[^\w\s\-+]", " ", s, flags=re.U)
@@ -21,13 +17,7 @@ def _norm(text: str) -> str:
 def _tokens(text: str) -> List[str]:
     return [t for t in _norm(text).split() if len(t) >= 2]
 
-# Удалены _name_expr() и _brand_expr() - используем напрямую Product.name.ilike() и Product.brand.ilike()
-# ILIKE уже case-insensitive, не нужен func.lower()
-
-# ----------------- dictionaries from DB -----------------
-
 def _fetch_distinct_categories(db: Session) -> list[str]:
-    """Получает все уникальные категории из БД (lowercase для сравнения)"""
     stmt = (
         select(func.distinct(func.lower(func.unnest(Product.category))).label("cat"))
         .where(Product.category.is_not(None))
@@ -36,7 +26,6 @@ def _fetch_distinct_categories(db: Session) -> list[str]:
     return [row[0] for row in result if row[0]]
 
 def _fetch_distinct_brands(db: Session) -> list[str]:
-    """Получает все уникальные бренды из БД (lowercase для сравнения)"""
     stmt = (
         select(func.distinct(func.lower(Product.brand)).label("brand"))
         .where(Product.brand.is_not(None))
@@ -44,8 +33,6 @@ def _fetch_distinct_brands(db: Session) -> list[str]:
     )
     result = db.execute(stmt).all()
     return [row[0] for row in result if row[0]]
-
-# ----------------- core search -----------------
 
 def search_products(
     db: Session, 
@@ -56,13 +43,6 @@ def search_products(
     min_price: Optional[float] = None,
     max_price: Optional[float] = None
 ) -> Dict[str, Any]:
-    """
-    Безопасный поиск с улучшенной логикой:
-    - Ищет в name ВСЕГДА (не только когда нет категорий)
-    - Комбинирует категории, бренды и name
-    - Сортировка применяется ДО пагинации
-    - Фильтры по цене
-    """
     
     tokens = _tokens(q)
     
@@ -77,65 +57,71 @@ def search_products(
 
     cat_set = set(_fetch_distinct_categories(db))
     
+    normalized_query = _norm(q)
+    shop_match = None
+    shop_exists = db.execute(
+        select(Product.shop)
+        .where(Product.shop.is_not(None))
+        .where(Product.shop != "")
+        .where(func.lower(Product.shop) == normalized_query)
+        .limit(1)
+    ).first()
+    if shop_exists:
+        shop_match = shop_exists[0]
+    
     brand_tokens_exact = []
     cat_tokens = []
     name_tokens = []
     
-    for t in tokens:
-        if not t or len(t) < 2:
-            continue
-            
-        exists = db.execute(
-            select(Product.id)
-            .where(Product.brand.is_not(None))
-            .where(Product.brand != "")
-            .where(Product.brand.ilike(f"%{t}%"))
-            .limit(1)
-        ).first()
-        if exists:
-            brand_tokens_exact.append(t)
-        else:
-            if t in cat_set:
-                cat_tokens.append(t)
+    if not shop_match:
+        for t in tokens:
+            if not t or len(t) < 2:
+                continue
+                
+            exists = db.execute(
+                select(Product.id)
+                .where(Product.brand.is_not(None))
+                .where(Product.brand != "")
+                .where(Product.brand.ilike(f"%{t}%"))
+                .limit(1)
+            ).first()
+            if exists:
+                brand_tokens_exact.append(t)
             else:
-                name_tokens.append(t)
+                if t in cat_set:
+                    cat_tokens.append(t)
+                else:
+                    name_tokens.append(t)
 
     q_sql = db.query(Product)
 
-    if cat_tokens:
-        q_sql = q_sql.filter(Product.category.overlap(cat_tokens))
+    if shop_match:
+        q_sql = q_sql.filter(Product.shop == shop_match)
+    else:
+        if cat_tokens:
+            q_sql = q_sql.filter(Product.category.overlap(cat_tokens))
 
-    if brand_tokens_exact:
-        brand_conds = [
-            and_(
-                Product.brand.is_not(None),
-                Product.brand != "",
-                Product.brand.ilike(f"%{t}%")
-            )
-            for t in brand_tokens_exact
-        ]
-        q_sql = q_sql.filter(or_(*brand_conds))
+        if brand_tokens_exact:
+            brand_conds = [
+                and_(
+                    Product.brand.is_not(None),
+                    Product.brand != "",
+                    Product.brand.ilike(f"%{t}%")
+                )
+                for t in brand_tokens_exact
+            ]
+            q_sql = q_sql.filter(or_(*brand_conds))
 
-    if name_tokens:
-        name_conds = [
-            and_(
-                Product.name.is_not(None),
-                Product.name != "",
-                Product.name.ilike(f"%{t}%")
-            )
-            for t in name_tokens
-        ]
-        q_sql = q_sql.filter(and_(*name_conds))
-    elif brand_tokens_exact and not cat_tokens:
-        name_conds = [
-            and_(
-                Product.name.is_not(None),
-                Product.name != "",
-                Product.name.ilike(f"%{t}%")
-            )
-            for t in brand_tokens_exact
-        ]
-        q_sql = q_sql.filter(or_(*name_conds))
+        if name_tokens:
+            name_conds = [
+                and_(
+                    Product.name.is_not(None),
+                    Product.name != "",
+                    Product.name.ilike(f"%{t}%")
+                )
+                for t in name_tokens
+            ]
+            q_sql = q_sql.filter(and_(*name_conds))
 
     if min_price is not None or max_price is not None:
         price_conditions = []

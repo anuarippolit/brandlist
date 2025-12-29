@@ -1,10 +1,10 @@
-# system/app/routes.py
 from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from sqlalchemy import func
 from system.db.db_service import get_db
 from system.app.search import search_products
-from system.app.schemas import SearchResponse, ProductResponse
+from system.app.schemas import SearchResponse, ProductResponse, BrandResponse, ShopResponse
 from system.app.security import (
     limiter,
     SEARCH_RATE_LIMIT,
@@ -122,6 +122,55 @@ async def get_products_by_ids(
                 shop=p.shop,
             )
             for p in products
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/brands", response_model=list[BrandResponse])
+async def get_brands(
+    db: Session = Depends(get_db),
+):
+    """Получить список брендов с количеством товаров"""
+    try:
+        brands = (
+            db.query(
+                Product.brand,
+                func.count(Product.id).label('count')
+            )
+            .filter(Product.brand.is_not(None))
+            .filter(Product.brand != "")
+            .group_by(Product.brand)
+            .order_by(func.count(Product.id).desc())
+            .all()
+        )
+        
+        return [
+            BrandResponse(brand=brand, count=count)
+            for brand, count in brands
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/shops", response_model=list[ShopResponse])
+async def get_shops(
+    db: Session = Depends(get_db),
+):
+    """Получить список магазинов"""
+    try:
+        shops = (
+            db.query(Product.shop)
+            .distinct()
+            .filter(Product.shop.is_not(None))
+            .filter(Product.shop != "")
+            .order_by(Product.shop)
+            .all()
+        )
+        
+        return [
+            ShopResponse(id=idx, name=shop[0], logo=None)
+            for idx, shop in enumerate(shops, start=1)
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error")

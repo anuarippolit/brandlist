@@ -135,6 +135,7 @@ const SearchResults = ({ params }: SearchResultsProps) => {
               products={products.map((p) => ({
                 ...p,
                 onClick: () => router.push(`/search/${encodeURIComponent(query)}/${p.id}`),
+                searchQuery: query,
               }))}
             />
 

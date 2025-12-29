@@ -24,3 +24,14 @@ class SearchResponse(BaseModel):
     total: int
     total_pages: int
 
+
+class BrandResponse(BaseModel):
+    brand: str
+    count: int
+
+
+class ShopResponse(BaseModel):
+    id: int
+    name: str
+    logo: Optional[str] = None
+

@@ -11,6 +11,7 @@ interface Product {
   link: string | null;
     category: string[];
     onClick?: () => void;
+    searchQuery?: string;
 }
 
 interface ProductGridProps {
@@ -33,6 +34,7 @@ const ProductGrid = ({ products }: ProductGridProps) => {
           key={product.id}
           product={product}
           onClick={product.onClick}
+          searchQuery={product.searchQuery}
         />
       ))}
     </div>

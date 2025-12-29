@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { trackProductCardClick } from '@/utils/analytics';
 
 interface ProductCardProps {
   product: {
@@ -15,9 +16,10 @@ interface ProductCardProps {
     category: string[];
   };
   onClick?: () => void;
+  searchQuery?: string;
 }
 
-const ProductCard = ({ product, onClick }: ProductCardProps) => {
+const ProductCard = ({ product, onClick, searchQuery }: ProductCardProps) => {
   const [isFavorited, setIsFavorited] = useState(false);
 
   useEffect(() => {
@@ -43,10 +45,22 @@ const ProductCard = ({ product, onClick }: ProductCardProps) => {
     window.dispatchEvent(new Event('storage'));
   };
 
+  const handleCardClick = () => {
+    // Track product card click
+    trackProductCardClick({
+      ...product,
+      searchQuery,
+    });
+    
+    if (onClick) {
+      onClick();
+    }
+  };
+
   return (
     <div
       className="cursor-pointer flex flex-col h-full"
-      onClick={onClick}
+      onClick={handleCardClick}
     >
       {/* Image with 3:4 aspect ratio */}
       <div className="w-full aspect-[4/5] mb-4 relative overflow-hidden bg-gray-100">
