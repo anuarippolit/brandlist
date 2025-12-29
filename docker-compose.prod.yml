@@ -8,10 +8,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-brandlist}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brandlist_password}
       POSTGRES_DB: ${POSTGRES_DB:-brandlist_db}
+      POSTGRES_INITDB_ARGS: "-E UTF8"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_INITDB_ARGS: "-E UTF8"
     ports:
       - "127.0.0.1:5432:5432"  # Only accessible from host, not external
     healthcheck:
