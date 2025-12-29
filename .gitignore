@@ -66,6 +66,10 @@ next-env.d.ts
 *.dump
 brandlist_db.txt
 
+# CSV files (uncomment if you don't want CSV in git)
+# *.csv
+# !backend/system/data/brandlist.csv
+
 # SSL certificates
 docker/nginx/ssl/*.pem
 docker/nginx/ssl/*.key
