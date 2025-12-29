@@ -35,8 +35,7 @@ export default function ProductDetail({ params }: Props) {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-        const response = await fetch(`${apiUrl}/api/products/${productId}`);
+        const response = await fetch(`/api/products/${productId}`);
         if (!response.ok) throw new Error(`Status: ${response.status}`);
         const data = await response.json();
         setProduct(data);

@@ -41,7 +41,7 @@ interface BrandDictionaryProps {
   apiUrl?: string;
 }
 
-const BrandDictionary = ({ apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000' }: BrandDictionaryProps) => {
+const BrandDictionary = ({ apiUrl }: BrandDictionaryProps) => {
   const [brands, setBrands] = useState<Brand[]>([]);
   const router = useRouter();
   const columnCount = useColumnCount();
@@ -49,7 +49,7 @@ const BrandDictionary = ({ apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://l
   useEffect(() => {
     const fetchBrands = async () => {
       try {
-        const response = await fetch(`${apiUrl}/api/brands`);
+        const response = await fetch('/api/brands');
         if (!response.ok) throw new Error('Failed to fetch brands');
         const data = await response.json();
         
@@ -73,7 +73,7 @@ const BrandDictionary = ({ apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://l
     };
 
     fetchBrands();
-  }, [apiUrl]);
+  }, []);
 
   const handleBrandClick = (brandName: string) => {
     router.push(`/search/${encodeURIComponent(brandName)}`);

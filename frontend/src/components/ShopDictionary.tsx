@@ -40,7 +40,7 @@ interface ShopDictionaryProps {
   apiUrl?: string;
 }
 
-const ShopDictionary = ({ apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000' }: ShopDictionaryProps) => {
+const ShopDictionary = ({ apiUrl }: ShopDictionaryProps) => {
   const [shops, setShops] = useState<Shop[]>([]);
   const router = useRouter();
   const columnCount = useColumnCount();
@@ -48,7 +48,7 @@ const ShopDictionary = ({ apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://lo
   useEffect(() => {
     const fetchShops = async () => {
       try {
-        const response = await fetch(`${apiUrl}/api/shops`);
+        const response = await fetch('/api/shops');
         if (!response.ok) throw new Error('Failed to fetch shops');
         const data = await response.json();
         setShops(data);
@@ -58,7 +58,7 @@ const ShopDictionary = ({ apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://lo
     };
 
     fetchShops();
-  }, [apiUrl]);
+  }, []);
 
   const handleShopClick = (shopName: string) => {
     router.push(`/search/${encodeURIComponent(shopName)}`);

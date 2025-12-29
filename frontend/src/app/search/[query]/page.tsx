@@ -43,7 +43,6 @@ const SearchResults = ({ params }: SearchResultsProps) => {
 
     setIsLoading(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       const params = new URLSearchParams({
         q: query,
         page: pageNum.toString(),
@@ -53,7 +52,7 @@ const SearchResults = ({ params }: SearchResultsProps) => {
         ...(currentFilters.maxPrice && { max_price: currentFilters.maxPrice.toString() }),
       });
 
-      const response = await fetch(`${apiUrl}/api/search?${params}`);
+      const response = await fetch(`/api/search?${params}`);
       if (!response.ok) throw new Error(`Failed: ${response.status}`);
       
       const data = await response.json();
