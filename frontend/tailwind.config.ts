@@ -12,6 +12,9 @@ export default {
         montserrat: ['Montserrat', 'sans-serif'],
         playfair: ['"Playfair Display"', 'serif'],
       },
+      screens: {
+        'xs': '375px', // Extra small devices (iPhone XS and similar)
+      },
     },
   },
   plugins: [],

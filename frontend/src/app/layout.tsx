@@ -89,46 +89,48 @@ export const metadata: Metadata = {
 const RootLayout = ({ children }: { children: React.ReactNode }) => {
   const gtmId = process.env.NEXT_PUBLIC_GTM_ID || '';
 
+  const jsonLdWebsite = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'BrandList',
+    url: 'https://brandlist.kz',
+    description: 'Поиск брендовой одежды и обуви в магазинах Казахстана',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: 'https://brandlist.kz/search/{search_term_string}',
+      },
+      'query-input': 'required name=search_term_string',
+    },
+  };
+
+  const jsonLdOrganization = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'BrandList',
+    url: 'https://brandlist.kz',
+    logo: 'https://brandlist.kz/images/logo.png',
+    description: 'Поиск брендовой одежды и обуви в магазинах Казахстана',
+    sameAs: [],
+  };
+
   return (
     <html lang="ru">
-      <head>
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {/* JSON-LD структурированные данные для лучшего SEO */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'WebSite',
-              name: 'BrandList',
-              url: 'https://brandlist.kz',
-              description: 'Поиск брендовой одежды и обуви в магазинах Казахстана',
-              potentialAction: {
-                '@type': 'SearchAction',
-                target: {
-                  '@type': 'EntryPoint',
-                  urlTemplate: 'https://brandlist.kz/search/{search_term_string}',
-                },
-                'query-input': 'required name=search_term_string',
-              },
-            }),
+            __html: JSON.stringify(jsonLdWebsite),
           }}
         />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'Organization',
-              name: 'BrandList',
-              url: 'https://brandlist.kz',
-              logo: 'https://brandlist.kz/images/logo.png',
-              description: 'Поиск брендовой одежды и обуви в магазинах Казахстана',
-              sameAs: [],
-            }),
+            __html: JSON.stringify(jsonLdOrganization),
           }}
         />
-      </head>
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <GTMScript gtmId={gtmId} />
         {children}
         <Analytics />
