@@ -182,13 +182,13 @@ export default function ProductDetail({ params }: Props) {
             )}
 
             {/* Brandlist info block */}
-            <div className="bg-[#5291f7] text-white px-12 py-4 w-fit mt-16 relative">
+            {/* <div className="bg-[#5291f7] text-white px-12 py-4 w-fit mt-16 relative">
               <div className="absolute -top-3 -left-3 w-12 h-12" style={{ borderTop: '6px solid black', borderLeft: '6px solid black' }}></div>
               <div className="absolute -bottom-3 -right-3 w-12 h-12" style={{ borderBottom: '6px solid black', borderRight: '6px solid black' }}></div>
               <div className="text-white text-xl font-montserrat leading-relaxed">
                 Проверенно Brandlist на оригинальность товара 🤖
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
         </div>
