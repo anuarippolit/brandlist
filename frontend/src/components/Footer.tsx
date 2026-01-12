@@ -8,7 +8,7 @@ const Footer = () => {
             href="https://t.me/khannzr" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="text-blue-400 hover:text-blue-300 underline"
+            className="hover:text-blue-300"
           >
             tg:@khannzr
           </a>
