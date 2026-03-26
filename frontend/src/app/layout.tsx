@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { Analytics } from '@vercel/analytics/react';
 import GTMScript from '@/components/GTMScript';
 import './globals.css';
 
@@ -133,7 +132,6 @@ const RootLayout = ({ children }: { children: React.ReactNode }) => {
         />
         <GTMScript gtmId={gtmId} />
         {children}
-        <Analytics />
       </body>
     </html>
   );
